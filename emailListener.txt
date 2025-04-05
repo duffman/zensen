@@ -1,0 +1,125 @@
+import { ImapFlow, MessageEnvelopeObject } from 'imapflow';
+
+interface Auth {
+	host: string;
+	username: string;
+	password: string;
+}
+
+class EmailListener {
+	private client: ImapFlow;
+	private decoder: TextDecoder;
+	private refreshDelay: number;
+	private callback: (envelope: MessageEnvelopeObject, bodyParts: string[]) => any;
+
+	constructor(auth: Auth, callback: (envelope: MessageEnvelopeObject, bodyParts: string[]) => any, refreshDelay: number = 1000) {
+		this.decoder = new TextDecoder();
+		this.refreshDelay = refreshDelay;
+		this.callback = callback;
+
+		this.client = new ImapFlow({
+										host: auth.host,
+										port: 993,
+										secure: true,
+										auth: {
+											user: auth.username,
+											pass: auth.password
+										},
+										emitLogs: false,
+										logger: false
+									});
+	}
+
+	public async start(): Promise<never> {
+		await this.connectMail();
+		await this.listenForEmails();
+		throw new Error("This should never return");
+	}
+
+	private async connectMail(): Promise<void> {
+		try {
+			await this.client.connect();
+		} catch (err) {
+			throw new Error(`Connection Failed: ${(err as any).responseText}`);
+		}
+	}
+
+	private async listenForEmails(): Promise<void> {
+		await this.withLock(async () => {
+			while (true) {
+				const messages: [number, string[], string[]][] = [];
+
+				// Pull new emails
+				for await (let message of this.client.fetch({ new: true }, { uid: true, bodyStructure: true })) {
+					const parts: string[] = [];
+					const encodings: string[] = [];
+					for (const childNode of message.bodyStructure.childNodes) {
+						parts.push(childNode.part);
+						encodings.push(childNode.encoding);
+					}
+					messages.push([message.uid, parts, encodings]);
+				}
+
+				// Process each email
+				for (const message of messages) {
+					const data = await this.client.fetchOne(message[0], {
+						bodyParts: Array.isArray(message[1]) ? message[1] : [message[1]],
+						envelope: true
+					}, { uid: true });
+
+					await this.client.messageFlagsAdd(message[0], ["\\Seen"], { uid: true });
+
+					const texts: string[] = [];
+					data.bodyParts.forEach((value, index) => {
+						texts.push(this.decoder.decode(Buffer.from(
+							this.decoder.decode(value),
+							this.getEncoding(message[2]?.[index] || "base64")
+						)));
+					});
+
+					this.callback(data.envelope, texts);
+				}
+
+				await this.wait(this.refreshDelay);
+			}
+		});
+
+		await this.client.logout();
+	}
+
+	private async withLock(callback: (client: ImapFlow) => Promise<void> | void): Promise<void> {
+		let error: any = null;
+		const lock = await this.client.getMailboxLock("INBOX").catch(err => {
+			error = `Acquiring lock failed: ${err}`;
+		});
+
+		if (error) throw error;
+
+		try {
+			await callback(this.client);
+		} catch (err) {
+			error = err;
+		} finally {
+			if (lock) lock.release();
+		}
+
+		if (error) throw error;
+	}
+
+	private getEncoding(string: string): BufferEncoding {
+		if (string.match(/b.*64.*url/)) return "base64url";
+		if (string.match(/b.*64/)) return "base64";
+		if (string.match(/(ucs.*2)|(utf.*16)/)) return "utf16le";
+		if (string.match(/utf.*8/)) return "utf8";
+		if (string.match(/(binary)|(latin)/)) return "latin1";
+		if (string.match(/ascii/)) return "ascii";
+		console.warn("Unknown encoding:", string);
+		return "utf8";
+	}
+
+	private wait(time: number): Promise<void> {
+		return new Promise(res => setTimeout(res, time));
+	}
+}
+
+export default EmailListener;

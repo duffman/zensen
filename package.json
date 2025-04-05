@@ -1,0 +1,44 @@
+{
+  "name": "zenmail.ai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.43",
+    "@langchain/langgraph": "^0.2.62",
+    "@langchain/openai": "^0.5.2",
+    "@types/nodemailer": "^6.4.17",
+    "buffer": "^6.0.3",
+    "elysia": "^1.2.25",
+    "emailjs": "^4.0.3",
+    "iconv-lite": "^0.6.3",
+    "imap": "^0.8.19",
+    "imapflow": "^1.0.184",
+    "langchain": "^0.3.19",
+    "mailgun-js": "^0.22.0",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^6.10.0",
+    "openai": "^4.91.0",
+    "postal-mime": "^2.4.3",
+    "postgres": "^3.4.5",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "tsyringe": "^4.9.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/imap": "^0.8.42",
+    "@types/imapflow": "^1.0.20",
+    "@types/mailgun-js": "^0.22.18",
+    "@types/mailparser": "^3.4.5",
+    "@types/node": "^22.13.14",
+    "bun-types": "^1.2.8",
+    "jest-mock-extended": "^4.0.0-beta1",
+    "typescript": "^5.8.2"
+  },
+  "private": true
+}
